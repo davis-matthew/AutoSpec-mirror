@@ -7,7 +7,6 @@ import pickle
 
 current_path = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.dirname(os.path.dirname(current_path)))
-from conf.jsoninfo import *
 
 CONST_DEBUG = 1 # 0 or 1
 
@@ -256,6 +255,7 @@ def write_into_final_c_file(Output_folder, mfName, suffix_str, InfillLines, is_s
 
 
 def set_next_api_key():
+    """
     max_api_id = int(os.environ.get('OPENAI_API_KEY_NUM'))
     cur_api_id = int(os.environ.get('CUR_OPENAI_API_KEY_ID'))  # Get the current API ID from the environment variable
 
@@ -267,7 +267,8 @@ def set_next_api_key():
     os.environ['OPENAI_API_KEY'] = decode_api_key(os.environ.get('OPENAI_API_KEY_' + str(cur_api_id-1)).encode()).decode()
     os.environ['BALANCE'] = os.environ.get('BALANCE_' + str(cur_api_id-1))
     os.environ['CUR_OPENAI_API_KEY_ID'] = str(cur_api_id) # Set the environment variable to record the current api_key_no
-
+    """
+    pass
 
 # formate time
 def formateTime(seconds):

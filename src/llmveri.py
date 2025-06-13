@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: UTF-8 -*-
 
-import os, sys, re
+import os, sys
 import logging
 import pickle
-import copy
 from itertools import combinations
-from typing import List
 from .framac import *
 from .baselib import *
 from .simplify_acsl import *
@@ -14,7 +12,7 @@ from .prompt.prompt import *
 
 current_path = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.dirname(os.path.dirname(current_path)))
-from utils.gptcore import *
+from src.llm_client import *
 
 SHOT_NUM = 3
 N_CHOICES = 8
@@ -90,7 +88,7 @@ def AutoGenInfillFile(GPT_File, Output_folder):
 
 
 # process only a single file
-def query_llm_and_get_verified_result_for_single_file(GPT_File, Output_folder, GPT_Task, sys_prompt, n_choices, shot_num, llm_model, enable_mutation):
+def query_llm_and_get_verified_result_for_single_file(GPT_File, Output_folder, GPT_Task, sys_prompt, n_choices, shot_num, enable_mutation):
     # record return value
     return_value = False
     total_solve_time = datetime.timedelta(0)
@@ -99,16 +97,9 @@ def query_llm_and_get_verified_result_for_single_file(GPT_File, Output_folder, G
     with open(GPT_File, "r") as f:
         gpt_file_strings = f.read()
     
-    useOpenKey = False
-    if llm_model == "gpt-4" or llm_model == "gpt-4-0613" or llm_model == "gpt-4-32k" or llm_model == "gpt-4-32k-0613":
-        useOpenKey = True
-    
     existing_spec_list = []
     if GPT_Task == 0: # Our Final Method
         cur_task_id, cur_task, new_infilled_file, existing_spec_list, iteration_times, is_outter_loop = AutoGenInfillFile(GPT_File, Output_folder)
-
-        if llm_model == "gpt-3.5-turbo" and (iteration_times == 3 or iteration_times == 5):
-            llm_model = "gpt-3.5-turbo-16k"
 
         # continue the alg. based on cur_task
         if cur_task == "loopinv_gen":
@@ -128,17 +119,17 @@ def query_llm_and_get_verified_result_for_single_file(GPT_File, Output_folder, G
             gpt_file_strings = f.read()
 
     if GPT_Task == 1: # loopinv gen
-        chatveri = BaseChatClass(get_incontext_learning_contents('loop_inv_gen', sys_prompt), useOpenKey=useOpenKey)
+        chatveri = BaseChatClass(get_incontext_learning_contents('loop_inv_gen', sys_prompt))
     elif GPT_Task == 2: # contract gen
-        chatveri = BaseChatClass(get_incontext_learning_contents('contract_gen', sys_prompt), useOpenKey=useOpenKey)
+        chatveri = BaseChatClass(get_incontext_learning_contents('contract_gen', sys_prompt))
     elif GPT_Task == 3: # loopinv infill
-        chatveri = BaseChatClass(get_incontext_learning_contents('loop_inv_infill', sys_prompt), useOpenKey=useOpenKey)
+        chatveri = BaseChatClass(get_incontext_learning_contents('loop_inv_infill', sys_prompt))
     elif GPT_Task == 4: # contract infill
-        chatveri = BaseChatClass(get_incontext_learning_contents('contract_infill', sys_prompt), useOpenKey=useOpenKey)
+        chatveri = BaseChatClass(get_incontext_learning_contents('contract_infill', sys_prompt))
     elif GPT_Task == 5: # normal
-        chatveri = BaseChatClass(get_incontext_learning_contents('normal', sys_prompt, shot_num), useOpenKey=useOpenKey)
+        chatveri = BaseChatClass(get_incontext_learning_contents('normal', sys_prompt, shot_num))
     elif GPT_Task == 6: # loop
-        chatveri = BaseChatClass(get_incontext_learning_contents('loop'), sys_prompt, useOpenKey=useOpenKey)
+        chatveri = BaseChatClass(get_incontext_learning_contents('loop'), sys_prompt)
     else:
         raise Exception("Error: GPT_Task is not correct: " + str(GPT_Task))
         
@@ -155,15 +146,10 @@ def query_llm_and_get_verified_result_for_single_file(GPT_File, Output_folder, G
     
     # query LLMs
     llms_start_time = datetime.datetime.now()
-    maxTokens = 1024
     temperature_arg = 0.7 + iteration_times*0.1
     if temperature_arg >= 1.1:
         temperature_arg = 1.1
-    if "llama" in llm_model:
-        full_reply_content_list, tokens_usage = chatveri.get_response(question, model = "meta/llama-2-70b:a52e56fee2269a78c9279800ec88898cecb6c8f1df22a6483132bea266648f00", max_tokens=maxTokens, temperature=temperature_arg, n_choices = n_choices)
-    else:
-        full_reply_content_list, tokens_usage = chatveri.get_respone(question, model = llm_model, maxTokens=maxTokens, temperature_arg=temperature_arg, n_choices = n_choices)
-    # chatveri.show_conversation(chatveri.conversation_list)
+    full_reply_content_list, tokens_usage = chatveri.get_response(question, temperature_arg=temperature_arg, n_choices = n_choices)
     llms_end_time = datetime.datetime.now()
     logging.info(f"total_tokens: {tokens_usage}\n")
     llms_query_times = llms_end_time - llms_start_time
@@ -221,7 +207,7 @@ def query_llm_and_get_verified_result_for_single_file(GPT_File, Output_folder, G
                     
                 # split loop assigns
                 if "loop assigns " in each_spec:
-                    if "unknown1" in each_spec or "unknown2" in each_spec or "unknown3" in each_spec or "unknown4" in each_spec:
+                    if "nondet_int" in each_spec:
                         continue
                     each_spec = each_spec.replace(", ", ",")
                     if "," in each_spec:
@@ -235,7 +221,7 @@ def query_llm_and_get_verified_result_for_single_file(GPT_File, Output_folder, G
                 else:        
                     if "UNINITIALIZED" in each_spec:
                         continue
-                    elif "unknown1()" in each_spec or "unknown2()" in each_spec or "unknown3()" in each_spec or "unknown4()" in each_spec:
+                    elif "nondet_int()" in each_spec:
                         continue
                     elif "loop variant " in each_spec:
                         each_spec = each_spec.replace("loop variant ", "loop invariant ")
@@ -424,6 +410,7 @@ def query_llm_and_get_verified_result_for_single_file(GPT_File, Output_folder, G
                         print("remove" + "'" + each_spec + "'")
             pass
 
+        """
         if "bubble" in GPT_File or "bufs_differ" in GPT_File or "parse_null" in GPT_File or "parse_algoid_params" in GPT_File: # (wcventure: Hidden Ticks)
             if GPT_Task == 1 or GPT_Task == 3:
                 print(generated_acsl_spec_list)
@@ -466,7 +453,7 @@ def query_llm_and_get_verified_result_for_single_file(GPT_File, Output_folder, G
                         generated_acsl_spec_list.append("ensures \\result == 0 <==> \\forall integer i; 0 <= i < n ==> b1[i] == b2[i];")
                     if "ensures \\result == 1 <==> \\exists integer i; 0 <= i < n && b1[i] != b2[i];" not in generated_acsl_spec_list:
                         generated_acsl_spec_list.append("ensures \\result == 1 <==> \\exists integer i; 0 <= i < n && b1[i] != b2[i];")
-
+        """
 
         # sort list
         generated_acsl_spec_list = sorted(generated_acsl_spec_list)
@@ -742,7 +729,7 @@ def query_llm_and_get_verified_result_for_single_file(GPT_File, Output_folder, G
 
 
 # process only the hole folder
-def query_llm_and_get_verified_result_for_filelist(all_cpp_file_list, Output_folder, GPT_Task, sys_prompt, n_choices, shot_num, llm_model, enable_mutation):
+def query_llm_and_get_verified_result_for_filelist(all_cpp_file_list, Output_folder, GPT_Task, sys_prompt, n_choices, shot_num, enable_mutation):
     if len(all_cpp_file_list) == 0:
         logging.error("No file in this folder")
         sys.exit(-1)
@@ -752,7 +739,7 @@ def query_llm_and_get_verified_result_for_filelist(all_cpp_file_list, Output_fol
         total_solve_time = datetime.timedelta(0)
         tokens_usage = 0
         for each_file in all_cpp_file_list:
-            ret, cur_query_times, cur_solve_time, cur_tokens_usage = query_llm_and_get_verified_result_for_single_file(each_file, Output_folder, GPT_Task, sys_prompt, n_choices, shot_num, llm_model, enable_mutation)
+            ret, cur_query_times, cur_solve_time, cur_tokens_usage = query_llm_and_get_verified_result_for_single_file(each_file, Output_folder, GPT_Task, sys_prompt, n_choices, shot_num, enable_mutation)
             ret_list.append(ret)
             llms_query_times = cur_query_times + llms_query_times
             total_solve_time = cur_solve_time + total_solve_time
@@ -763,7 +750,7 @@ def query_llm_and_get_verified_result_for_filelist(all_cpp_file_list, Output_fol
         return False, llms_query_times, total_solve_time, tokens_usage
 
 
-def LLMVeri_Main(GPT_File, GPT_Task, Output_folder, llm_model, enable_mutation):
+def LLMVeri_Main(GPT_File, GPT_Task, Output_folder, enable_mutation):
     
     if GPT_File is None or GPT_Task is None:
         print("No file or task")
@@ -813,7 +800,7 @@ def LLMVeri_Main(GPT_File, GPT_Task, Output_folder, llm_model, enable_mutation):
             logging.error("GPT_File is not C file")
             sys.exit(-1)
         
-    ret, llms_query_times, total_solve_time, tokens_usage = query_llm_and_get_verified_result_for_filelist(all_cpp_file_list, Output_folder, GPT_Task, sys_prompt, N_CHOICES, SHOT_NUM, llm_model, enable_mutation)
+    ret, llms_query_times, total_solve_time, tokens_usage = query_llm_and_get_verified_result_for_filelist(all_cpp_file_list, Output_folder, GPT_Task, sys_prompt, N_CHOICES, SHOT_NUM, enable_mutation)
     
     print("\n+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
     print("++++++++++++++++++++++++++++ End ++++++++++++++++++++++++++++++")

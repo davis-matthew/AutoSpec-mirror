@@ -91,11 +91,7 @@ def MartkedSourceCode(file_name, SpecDictList):
     SAVE_PICKLE['spec_num_simplified'] = 0
     SAVE_PICKLE['TaskList'] = [] # 0 -> not marked, 1 -> contract, 2 -> loop invariant, 3 -> outter loop invariant
     
-    # Read the source code
-    if "code2inv" in file_name or "SVCOMP" in file_name or "multi-phase-loops" in file_name or "fib_46_" in file_name:
-        target_file_name = file_name.replace(".c", "_m.c")
-    else:
-        target_file_name = file_name
+    target_file_name = file_name
     
     with open(target_file_name, 'r') as f:
         # call readlines() to get a list of lines
@@ -135,10 +131,6 @@ def MartkedSourceCode(file_name, SpecDictList):
                     else:
                         InfillLines[lineNO-1] = space_prefix + "\n" + InfillLines[lineNO-1]
                     taskID = taskID + 1
-    # remove target_file_name
-    if "code2inv" in file_name or "SVCOMP" in file_name or "multi-phase-loops" in file_name or "fib_46_" in file_name:
-        os.system("rm -f " + target_file_name)
-    pass
     SAVE_PICKLE['MSLines'] = MSLines
 
     # Save as list
@@ -160,59 +152,7 @@ def MartkedSourceCode(file_name, SpecDictList):
 
 
 def preprocess(file_name):
-    if "code2inv" in file_name or "SVCOMP" in file_name or "multi-phase-loops" in file_name or "fib_46_" in file_name:
-        new_file_name = file_name.replace(".c", "_m.c")
-        with open(file_name, 'r') as f:
-            # call readlines() to get a list of lines
-            lines = f.readlines()
-            for i in range(0, len(lines)):
-                if "static_assert(" in lines[i]:
-                    lines[i] = lines[i].replace("static_assert(", "//@ assert ").replace(");", ";")
-                elif "europa_assert(" in lines[i]:
-                    lines[i] = lines[i].replace("europa_assert(", "//@ assert ").replace(");", ";")
-                elif "__VERIFIER_assert(" in lines[i]:
-                    lines[i] = lines[i].replace("__VERIFIER_assert(", "//@ assert ").replace(");", ";")
-                elif "__VERIFIER_assert (" in lines[i]:
-                    lines[i] = lines[i].replace("__VERIFIER_assert (", "//@ assert ").replace(");", ";")
-                elif "assert(" in lines[i]:
-                    lines[i] = lines[i].replace("assert(", "//@ assert ").replace(");", ";")
-                elif "assert (" in lines[i]:
-                    lines[i] = lines[i].replace("assert (", "//@ assert ").replace(");", ";")
-                elif "&& __VERIFIER_nondet_int()" in lines[i]:
-                    lines[i] = lines[i].replace("&& __VERIFIER_nondet_int()", "")
-                elif "= __VERIFIER_nondet_int()" in lines[i]:
-                    lines[i] = ""
-                
-                if "// invariant " in lines[i] or "// invarian " in lines[i]:
-                    lines[i] = ""
-                elif "assume(" in lines[i]:
-                    lines[i] = ""
-                elif "assume (" in lines[i]:
-                    lines[i] = ""
-                elif "europa_assume(" in lines[i]:
-                    lines[i] = ""
-                elif "europa_assume (" in lines[i]:
-                    lines[i] = ""
-                elif "__VERIFIER_assume(" in lines[i]:
-                    lines[i] = ""
-                elif "__VERIFIER_assume (" in lines[i]:
-                    lines[i] = ""
-                elif "europa_make_symbolic(" in lines[i]:
-                    lines[i] = ""
-                elif "europa_make_symbolic (" in lines[i]:
-                    lines[i] = ""
-                elif "europa_invariant(" in lines[i]:
-                    lines[i] = ""
-                elif "europa_invariant (" in lines[i]:
-                    lines[i] = ""
-
-            with open(new_file_name, 'w') as f:
-                f.writelines(lines)
-    else:
-        return file_name
-        
-    
-    return new_file_name
+    return file_name
 
 def main(argv: List[str]) -> None:
     # set logging.INFO rather than logging.DEBUG

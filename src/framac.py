@@ -1,17 +1,22 @@
 #!/usr/bin/env python3
 # -*- coding: UTF-8 -*-
 
-import os, io, sys, time
-import openai
+import os, io
 import logging
 import subprocess
 import datetime
-from typing import List
+
+CUTOFF_MINUTES=25
 
 Check_STDOUT = 1                    # Set 1 if you want to record std result
 Check_STDERR = 1                    # Set 1 if you want to record err result
 SubprocessTimeout = 500             # Set the timeout of subprocess
 
+fuzz_start_time = None
+
+def set_fuzz_start_time(start_time):
+    global fuzz_start_time
+    fuzz_start_time = start_time
 
 # create subprocess according to the value of Check_STDOUT and Check_STDERR
 def create_FRAMAC_subprocess(FRAMAC_Command, Check_STDOUT, Check_STDERR):
@@ -69,7 +74,12 @@ def get_result_type(context_bytes):
 
 def run_framac_with_wp(Output_folder, gfile, time_out = 8):
     starttime = datetime.datetime.now()
-    FRAMAC_Command = ["frama-c", "-wp", "-wp-precond-weakening", "-wp-no-callee-precond", "-wp-prover", "Alt-Ergo,Z3", "-wp-print", "-wp-timeout", str(time_out),  os.path.join(Output_folder, gfile)]
+    if starttime - fuzz_start_time > datetime.timedelta(minutes=CUTOFF_MINUTES):
+        print("[DEBUG] Timeout for fuzzing")
+        with open (os.path.join(Output_folder, 'final_result'), "w") as timeoutfile:
+            timeoutfile.write("Timeout")
+        exit(1)
+    FRAMAC_Command = ["frama-c", "-kernel-warn-key", "typing:implicit-function-declaration=inactive,annot:missing-spec=inactive", "-wp", "-wp-precond-weakening", "-wp-no-callee-precond", "-wp-prover", "Alt-Ergo,Z3", "-wp-print", "-wp-timeout", str(time_out), os.path.join(Output_folder, gfile)]
     
     # create subprocess according to the value of check_STDOUT and check_STDERR
     process = create_FRAMAC_subprocess(FRAMAC_Command, Check_STDOUT, Check_STDERR)
@@ -89,15 +99,20 @@ def run_framac_with_wp(Output_folder, gfile, time_out = 8):
                 output_result_type = result_type
                 fleft = fleft.replace("_gen_", "_fstd_")
                 fstd_file_name = fleft + "_" + result_type
-                output_std_file_name = os.path.join(Output_folder, fstd_file_name + ".txt")
+                output_std_file_name = os.path.join(Output_folder, fstd_file_name + ".out.txt")
                 with open (output_std_file_name, "wb") as stdfile:
                     #stdfile.write(bytes(str(pattern)+"\n", encoding = "utf8"))
                     stdfile.write(stdoutdata)
             if stderrdata != b'':
                 fleft = fleft.replace("_gen_", "_ferr_")
-                output_err_file_name = os.path.join(Output_folder, fleft + ".txt")
+                output_err_file_name = os.path.join(Output_folder, fleft + ".err.txt")
                 with open (output_err_file_name, "wb") as errfile:
                     errfile.write(stderrdata)
+            if output_result_type == "UK" or output_result_type == "":
+                print('[DEBUG] ERR: ' + os.path.join(Output_folder, gfile))
+                with open (os.path.join(Output_folder, 'final_result'), "w") as panicfile:
+                    panicfile.write("Panic: " + os.path.join(Output_folder, gfile))
+                exit(1)
         else:
             process.communicate(timeout=SubprocessTimeout)
     

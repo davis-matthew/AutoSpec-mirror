@@ -10,17 +10,15 @@ from src.baselib import *
 
 current_path = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.dirname(current_path))
-from conf.jsoninfo import *
-load_json_config(True)
 
 
 def main(argv: List[str]) -> None:
     # Parse the command line arguments
-    gpt_file, gpt_task, outputfolder, llm_model, enable_mutation = parse_args(argv)
+    gpt_file, gpt_task, outputfolder, enable_mutation = parse_args(argv)
     
     # Start
     try:
-        ret, llms_query_times, total_solve_time, tokens_usage = LLMVeri_Main(gpt_file, gpt_task, outputfolder, llm_model, enable_mutation)
+        ret, llms_query_times, total_solve_time, tokens_usage = LLMVeri_Main(gpt_file, gpt_task, outputfolder, enable_mutation)
         print("llms_query_times =", llms_query_times)
         print("total_solve_time =", total_solve_time)
         print("tokens_usage =", tokens_usage)
